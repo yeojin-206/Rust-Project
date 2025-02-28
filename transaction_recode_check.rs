@@ -8,6 +8,7 @@ use serde::Deserialize;
 struct Output1 {
     ord_dt:String, //주문날짜
     ord_gno_brno:String, //주문 번호
+    orgn_odno:String, //원주문번호
     pdno:String, //상품 번호
     prdt_name:String, //상품 이름
     ord_qty:String, //주문 수량
@@ -29,8 +30,8 @@ struct TransactionRecord {
     msg1:String,
     ctx_area_fk100: String,
     ctx_area_nk100: String,
-    output1: Option<Vec<Output1>>, // 여러 개의 상품 정보를 담기 위해 Vec 사용
-    output2: Option<Output2>, // 여러 개의 상품 정보를 담기 위해 Vec 사용
+    output1: Option<Vec<Output1>>,
+    output2: Option<Output2>,
 }
 #[derive(Serialize)]
 struct QueryParams {
@@ -49,60 +50,24 @@ struct QueryParams {
     ctx_area_fk100:String,
     ctx_area_nk100:String,
 }
+pub async fn run(access_token:&str) -> Result<(), Error>{
 
-#[derive(Deserialize, Debug)]
-struct TokenResponse {
-    access_token: String, // 접근 토큰
-    token_type: String,   // 토큰 유형
-    expires_in: u64,      // 만료 시간
-}
-
-pub async fn get_access_token() -> Result<TokenResponse, Error> {
     let client = Client::new();
-    let url = "https://openapi.koreainvestment.com:9443/oauth2/tokenP";
-    let app_key = "APIKEY";
-    let app_secret = "SECRET";
-
-    // 요청 본문 생성
-    let params = json!({
-        "grant_type": "client_credentials",
-        "appkey": app_key,
-        "appsecret": app_secret
-    });
-
-    // POST 요청 보내기
-    let response = client.post(url)
-        .header("Content-Type", "application/json; charset=utf-8")
-        .json(&params) // JSON 형식으로 본문 추가
-        .send()
-        .await?;
-
-    // JSON 응답 파싱
-    let token_response: TokenResponse = response.json().await?;
-
-    Ok(token_response)
-}
-pub async fn run() -> Result<(), Error>{
-
-    let token_response = get_access_token().await?;
-    let access_token = token_response.access_token;
-    
-    let client = Client::new();
-    let appkey = "APIKEY";
-    let appsecret = "SECRET";
+    let appkey = "APPKEY";
+    let appsecret = "APPSECRET";
     let base_url ="https://openapivts.koreainvestment.com:29443";
     let endpoint = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld";
     let url = format!("{}{}?apiKey={}", base_url, endpoint, appkey);
 
     let params = QueryParams {
-        cano: "--------".to_string(),
+        cano: "계좌번호".to_string(),
         acnt_prdt_cd: "01".to_string(),
-        inqr_strt_dt:"20250218".to_string(),
-        inqr_end_dt:"20250221".to_string(),
+        inqr_strt_dt:"20250227".to_string(),
+        inqr_end_dt:"20250227".to_string(),
         sll_buy_dvsn_cd:"00".to_string(),
         inqr_dvsn:"01".to_string(),
         pdno:"".to_string(),
-        ccld_dvsn:"01".to_string(),
+        ccld_dvsn:"00".to_string(),
         ord_gno_brno:"".to_string(),
         odno:"".to_string(),
         inqr_dvsn_3:"00".to_string(),
@@ -123,20 +88,19 @@ pub async fn run() -> Result<(), Error>{
     .await?;
 
     let transaction: TransactionRecord= response.json().await?; //JSON 응답을 TransactionRecord 구조체로 파싱
-    //println!("{:?}",transaction);
 
-    // 각 필드를 한 줄씩 출력
     println!("rt_cd: {}", transaction.rt_cd);
     println!("msg_cd: {}", transaction.msg_cd);
     println!("msg1: {}", transaction.msg1);
     println!("ctx_area_fk100: {}", transaction.ctx_area_fk100);
     println!("ctx_area_nk100: {}", transaction.ctx_area_nk100);
     println!("");
-
+    
     if let Some(output1) = transaction.output1 {
         for item in output1 {
             println!("주문 날짜 {}", item.ord_dt);
             println!("주문 번호 {}", item.ord_gno_brno);
+            println!("원주문 번호 {}",item.orgn_odno);
             println!("상품 번호 {}", item.pdno);
             println!("상품 이름 {}", item.prdt_name);
             println!("주문 수량 {}", item.ord_qty);

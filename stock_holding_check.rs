@@ -36,55 +36,18 @@ struct QueryParams {
     ctx_area_fk100:String,
     ctx_area_nk100:String,
 }
-
-#[derive(Deserialize, Debug)]
-struct TokenResponse {
-    access_token: String, // 접근 토큰
-    token_type: String,   // 토큰 유형
-    expires_in: u64,      // 만료 시간
-}
-
-pub async fn get_access_token() -> Result<TokenResponse, Error> {
-    let client = Client::new();
-    let url = "https://openapi.koreainvestment.com:9443/oauth2/tokenP";
-    let app_key = "APIKEY";
-    let app_secret = "SECRET";
-
-    // 요청 본문 생성
-    let params = json!({
-        "grant_type": "client_credentials",
-        "appkey": app_key,
-        "appsecret": app_secret
-    });
-
-    // POST 요청 보내기
-    let response = client.post(url)
-        .header("Content-Type", "application/json; charset=utf-8")
-        .json(&params) // JSON 형식으로 본문 추가
-        .send()
-        .await?;
-
-    // JSON 응답 파싱
-    let token_response: TokenResponse = response.json().await?;
-
-    Ok(token_response)
-}
-
-pub async fn run() -> Result<(), Error>{
-
-    let token_response = get_access_token().await?;
-    let access_token = token_response.access_token;
+pub async fn run(access_token:&str) -> Result<(), Error>{
     
     let client = Client::new();
-    let appkey = "APIKEY";
-    let appsecret = "SECRET";
+    let appkey = "APPKEY";
+    let appsecret = "APPSECRET";
     let base_url = "https://openapivts.koreainvestment.com:29443";
     let endpoint = "/uapi/domestic-stock/v1/trading/inquire-balance";
     let url = format!("{}{}?apiKey={}", base_url, endpoint, appkey);
     //[국내주식]>주문/계좌>주식잔고조회 - GET
 
     let params = QueryParams {
-        cano: "--------".to_string(),
+        cano: "계좌번호".to_string(),
         acnt_prdt_cd: "01".to_string(),
         afhr_flpr_yn: "N".to_string(),
         ofl_yn: "Y".to_string(),
@@ -108,7 +71,6 @@ pub async fn run() -> Result<(), Error>{
     .send().await?; //비동기 HTTP GET 요청
 
     let check: Holding= response.json().await?; //JSON 응답을 Holding 구조체로 파싱
-    //println!("{:?}",check);
     println!("rt_cd: {}", check.rt_cd);
     println!("msg_cd: {}", check.msg_cd);
     println!("msg1: {}", check.msg1);

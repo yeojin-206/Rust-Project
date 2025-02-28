@@ -1,41 +1,130 @@
 use crate::Error;
 use reqwest::Client;
-use tokio_tungstenite::connect_async;
-use tokio_tungstenite::tungstenite::protocol::Message;
-use url::Url;
+use serde::Serialize;
+use serde_json::json;
+use serde::Deserialize;
 
-#[derive(serde::Deserialize, Debug)]
-struct Stock {
-    code: String,          // 주식 코드
-    name: String,          // 주식 이름
-    current_price: f64,    // 현재 가격
-    change: f64,           // 변동률
-    volume: u64,           // 거래량
+#[derive(Serialize)]
+struct QueryParams {
+    fid_cond_mrkt_div_code:String,
+    fid_input_iscd:String,
 }
-pub async fn run() -> Result<(), Error>{
+#[derive(serde::Deserialize, Debug)]
+struct Search {
+    rt_cd: String,       // 성공 실패 코드
+    msg_cd: String,      // 응답코드
+    msg1: String,        // 응답메시지
+    output:Option<Vec<Output>>,
+}
+#[derive(serde::Deserialize, Debug)]
+struct Output {
+    bstp_kor_isnm:String, //업종 한글 종목명
+    stck_prpr:String, //주식 현재가
+    stck_hgpr:String, //주식 최고가
+    stck_lwpr:String, //주식 최저가
+    stck_mxpr:String, //주식 상한가
+    stck_llam:String, //주식 하한가
+}
+pub async fn run(access_token:&str,code:&str) -> Result<(), Error>{
+    
+    let client = Client::new();
+    let appkey = "APPKEY";
+    let appsecret = "APPSECRET";
+    let base_url = "https://openapivts.koreainvestment.com:29443";
+    let endpoint = "/uapi/domestic-stock/v1/quotations/inquire-price";
+    let url = format!("{}{}?apiKey={}", base_url, endpoint, appkey);
+    //[국내주식]>기본시세>주식현재가 시세 - GET
 
-    let api_key = "APIKEY";
-    let base_url = "ws://ops.koreainvestment.com:31000";
-    let endpoint = "/tryitout/H0STASP0";
-    let url = Url::parse("{}{}?apiKey={}", base_url, endpoint, api_key).unwrap();
-    let (ws_stream, _) = connect_async(url).await.expect("연결오류");
-    //[국내주식]>실시간시세> 국내주식 실시간호가
+    let params = QueryParams {
+        fid_cond_mrkt_div_code:"J".to_string(),
+        fid_input_iscd:code.to_string(),
+    };
+    let response = client.get(&url)
+    .header("Content-Type", "application/json; charset=utf-8")
+    .header("Authorization", format!("Bearer {}", access_token))
+    .header("appkey", appkey)
+    .header("appsecret",appsecret)
+    .header("tr_id","FHKST01010100")
+    .query(&params)
+    .send().await?; 
 
-    // 메시지 전송
-    let message = Message::Text("".to_string());
-    ws_stream.send(message).await.expect("Failed to send message");
-
-    // 응답 수신
-    while let Some(message) = ws_stream.next().await {
-        match message {
-            Ok(msg) => println!("Received: {}", msg),
-            Err(e) => eprintln!("Error receiving message: {}", e),
+    println!("Response Status: {}", response.status());
+    let response_text = response.text().await?;
+    // 응답이 콤마로 구분된 경우 처리
+    let lines: Vec<&str> = response_text.split('\n').collect();
+    let mut checks:Vec<&str> = Vec::new();
+    for line in lines {
+        let parts: Vec<&str> = line.split(',').collect();
+        for part in parts {
+            let sub_parts: Vec<&str> = part.split(':').collect();
+            checks.extend(sub_parts); // sub_parts를 checks에 추가
         }
     }
-
-    //let response = reqwest::get(&url).await?; // 비동기 HTTP GET 요청
-    //let stock: Stock= response.json().await?; //JSON 응답을 Stock 구조체로 파싱
-
-    //println!("{:?}",stock);
+    if let Some(value) = checks.get(8) {
+        let cleaned_value = value
+        .replace("Some(", "")
+        .replace(")", "")
+        .replace("\\\"", "")
+        .replace("\"", "");
+    
+        println!("업종 한글 종목명 {}", cleaned_value);
+    } else {
+        println!("값이 없습니다.");
+    }
+    if let Some(value) = checks.get(22) {
+        let cleaned_value = value
+        .replace("Some(", "")
+        .replace(")", "")
+        .replace("\\\"", "")
+        .replace("\"", "");
+    
+        println!("주식 현재가 {}", cleaned_value);
+    } else {
+        println!("값이 없습니다.");
+    }
+    if let Some(value) = checks.get(38) {
+        let cleaned_value = value
+        .replace("Some(", "")
+        .replace(")", "")
+        .replace("\\\"", "")
+        .replace("\"", "");
+    
+        println!("주식 최고가 {}", cleaned_value);
+    } else {
+        println!("값이 없습니다.");
+    }
+    if let Some(value) = checks.get(40) {
+        let cleaned_value = value
+        .replace("Some(", "")
+        .replace(")", "")
+        .replace("\\\"", "")
+        .replace("\"", "");
+    
+        println!("주식 최저가 {}", cleaned_value);
+    } else {
+        println!("값이 없습니다.");
+    }
+    if let Some(value) = checks.get(42) {
+        let cleaned_value = value
+        .replace("Some(", "")
+        .replace(")", "")
+        .replace("\\\"", "")
+        .replace("\"", "");
+    
+        println!("주식 상한가 {}", cleaned_value);
+    } else {
+        println!("값이 없습니다.");
+    }
+    if let Some(value) = checks.get(44) {
+        let cleaned_value = value
+        .replace("Some(", "")
+        .replace(")", "")
+        .replace("\\\"", "")
+        .replace("\"", "");
+    
+        println!("주식 하한가 {}", cleaned_value);
+    } else {
+        println!("값이 없습니다.");
+    }
     Ok(())
 }
